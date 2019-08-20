@@ -12,34 +12,35 @@ FLAGS = flags.FLAGS
 def main(argv):
     model = _model()
     
-    test_file = os.path.join(FLAGS.data_dir, "data", "{}.paraphrases.test.examples".format(FLAGS.dataset))
-    with open(test_file) as f:
-        test_str = f.read()
-        test_data = sexpdata.loads("({})".format(test_str))
-    test_fake = set()
-    for datum in test_data:
-        real = datum[1][1]
-        fake = datum[2][1]
-        test_fake.add(fake)
-
-    train_file = os.path.join(FLAGS.data_dir, "data", "{}.paraphrases.groups".format(FLAGS.dataset))
     fake_utts = []
     real_utts = []
-    last_fake = None
+
+    train_file = os.path.join(FLAGS.data_dir, "data", "{}.paraphrases.train.examples".format(FLAGS.dataset))
     with open(train_file) as f:
-        for line in f:
-            if line.startswith("original"):
-                last_fake = line.split("-")[1].strip()
-                print("fake", last_fake)
-                continue
-            if last_fake in fake:
-                print("test")
-                continue
-            line = line.split(",")[0]
-            line = line.split("-")[1].strip()
-            fake_utts.append(last_fake)
-            real_utts.append(line)
-            print("real", line)
+        train_str = f.read()
+        train_data = sexpdata.loads("({})".format(train_str))
+    for datum in train_data:
+        real = datum[1][1]
+        fake = datum[2][1]
+        fake_utts.append(fake)
+        real_utts.append(real)
+
+    #train_file = os.path.join(FLAGS.data_dir, "data", "{}.paraphrases.groups".format(FLAGS.dataset))
+    #last_fake = None
+    #with open(train_file) as f:
+    #    for line in f:
+    #        if line.startswith("original"):
+    #            last_fake = line.split("-")[1].strip()
+    #            print("fake", last_fake)
+    #            continue
+    #        line = line.split(",")[0]
+    #        real = line.split("-")[1].strip()
+    #        print("real", line)
+    #        if real in test_real:
+    #            print("test")
+    #            continue
+    #        fake_utts.append(last_fake)
+    #        real_utts.append(real)
 
     model.train(real_utts, fake_utts)
     model.save(FLAGS.write_model)

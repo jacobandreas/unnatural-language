@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from torch import nn, optim
 from tqdm import tqdm
+import sys
 
 FLAGS = flags.FLAGS
 
@@ -50,10 +51,8 @@ class SimpleModel(Model):
 
         n_features = self.utt_reps.shape[1]
         if learned_scorer:
-            print("built scorer", learned_scorer)
             self.scorer = Scorer(n_features)
         else:
-            print("built dist", learned_scorer)
             self.scorer = DistScorer(n_features)
         self.scorer.to(device)
 
@@ -69,7 +68,7 @@ class SimpleModel(Model):
 
         for i in range(5000):
             if (i+1) % 100 == 0:
-                print("{:.3f}".format(total_loss / 100))
+                print("{:.3f}".format(total_loss / 100), file=sys.stderr)
                 total_loss = 0
 
             true_indices = np.random.randint(len(real_reps), size=100)
@@ -104,7 +103,7 @@ class SimpleModel(Model):
         for n, i in enumerate(nbest):
             gold = "*" if self.lfs[i] == gold_lf else " "
             if n < 10 or gold == "*":
-                print("{:4d} {:4d} {} {:0.3f}".format(n, i, gold, scores[i]), self.utts[i])
-        print(best)
+                print("{:4d} {:4d} {} {:0.3f}".format(n, i, gold, scores[i]), self.utts[i], file=sys.stderr)
+        print(best, file=sys.stderr)
 
         return self.lfs[best]
