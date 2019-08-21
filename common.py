@@ -18,6 +18,10 @@ flags.DEFINE_boolean("lex_features", True, "use lexical features")
 flags.DEFINE_boolean("bert_features", True, "use bert features")
 flags.DEFINE_boolean("train_on_paraphrase", False, "train a scoring function")
 
+flags.DEFINE_integer("max_examples", None, "maximum number of examples to read")
+flags.DEFINE_float("train_frac", 1, "fraction of examples to train on")
+flags.DEFINE_boolean("TEST", False, "run on the test set")
+
 flags.DEFINE_string("write_vocab", "vocab.json", "")
 flags.DEFINE_string("write_utt_reps", "utt_reps.npy", "")
 flags.DEFINE_string("write_utts", "utts.json", "")
@@ -29,7 +33,7 @@ def _device():
 
 def _representer(vocab):
     tokenizer = BertTokenizer.from_pretrained(FLAGS.bert_version)
-    representer = BertModel.from_pretrained(FLAGS.bert_version, output_hidden_states=False).to(_device())
+    representer = BertModel.from_pretrained(FLAGS.bert_version, output_hidden_states=True).to(_device())
     nlp = spacy.load("en_core_web_sm")
 
     #tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
@@ -41,8 +45,11 @@ def _representer(vocab):
         if FLAGS.bert_features:
             utt_enc = torch.tensor([tokenizer.encode(utt)]).to(_device())
             with torch.no_grad():
-                utt_rep = representer(utt_enc)[0].mean(dim=1)
-            out.append(F.normalize(utt_rep, dim=1))
+                _, _, hiddens = representer(utt_enc)
+                word_rep = hiddens[0].mean(dim=1)
+                seq_rep = hiddens[-1].mean(dim=1)
+            out.append(F.normalize(word_rep, dim=1))
+            out.append(F.normalize(seq_rep, dim=1))
 
         if FLAGS.lex_features:
             utt_lex = np.zeros((1, len(vocab)), dtype=np.float32)

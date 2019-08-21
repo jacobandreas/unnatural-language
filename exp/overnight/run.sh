@@ -1,12 +1,14 @@
 #!/bin/sh
 
+. $HOME/.profile
+
 MODEL="simple"
 DATA_DIR="$HOME/data/overnight"
 
 DATASETS="basketball blocks calendar housing publications recipes restaurants socialnetwork"
-#DATASETS="basketball"
 
-basedir=$(dirname "$0")
+#basedir=$(dirname "$0")
+basedir="/home/gridsan/jda/code/unnatural/exp/overnight"
 cd $basedir
 
 for dataset in $DATASETS

@@ -19,6 +19,8 @@ python3 ../../../../train.py \
     --lex_features=$LEX_FEATURES \
     --bert_features=$BERT_FEATURES \
     --train_on_paraphrase=$PARAPHRASE \
+    --max_examples=2000 \
+    --train_frac=0.8 \
     &> train.log
 
 cd $SEMPRE_DIR
@@ -26,6 +28,9 @@ cd $SEMPRE_DIR
     @domain=$DATASET \
     -Builder.parser WrappedParser \
     -WrappedParser.parser $BASE_DIR/parse.sh \
+    -trainFrac 0 \
+    -devFrac 0.2 \
+    -maxExamples train:2000 test:500 \
     &> $BASE_DIR/predict.log
 cd $BASE_DIR
 

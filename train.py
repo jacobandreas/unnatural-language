@@ -19,28 +19,18 @@ def main(argv):
     with open(train_file) as f:
         train_str = f.read()
         train_data = sexpdata.loads("({})".format(train_str))
+
+    num_train = len(train_data)
+    if FLAGS.max_examples is not None:
+        num_train = min(num_train, FLAGS.max_examples)
+    num_train = int(num_train * FLAGS.train_frac)
+    train_data = train_data[:num_train]
+
     for datum in train_data:
         real = datum[1][1]
         fake = datum[2][1]
         fake_utts.append(fake)
         real_utts.append(real)
-
-    #train_file = os.path.join(FLAGS.data_dir, "data", "{}.paraphrases.groups".format(FLAGS.dataset))
-    #last_fake = None
-    #with open(train_file) as f:
-    #    for line in f:
-    #        if line.startswith("original"):
-    #            last_fake = line.split("-")[1].strip()
-    #            print("fake", last_fake)
-    #            continue
-    #        line = line.split(",")[0]
-    #        real = line.split("-")[1].strip()
-    #        print("real", line)
-    #        if real in test_real:
-    #            print("test")
-    #            continue
-    #        fake_utts.append(last_fake)
-    #        real_utts.append(real)
 
     model.train(real_utts, fake_utts)
     model.save(FLAGS.write_model)

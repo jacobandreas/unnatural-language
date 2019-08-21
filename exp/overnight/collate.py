@@ -14,7 +14,7 @@ for dataset in os.listdir("."):
             continue
         with open(result_filename) as f:
             for line in f:
-                if "Stats for iter=1.test" in line:
+                if "Stats for iter=1.dev" in line:
                     result_line = line.strip()
         if result_line is None:
             continue

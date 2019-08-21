@@ -8,6 +8,7 @@ from tqdm import tqdm
 import sys
 
 FLAGS = flags.FLAGS
+HIDDEN = 1024
 
 def dist_l2(query, target):
     return torch.norm(query - target, dim=1)
@@ -24,12 +25,14 @@ class Scorer(nn.Module):
     def __init__(self, size):
         super().__init__()
         self.weight = nn.Parameter(torch.ones(1, size))
+        #self.proj = nn.Linear(size, HIDDEN, bias=False)
         self.query_score = nn.Linear(size, 1)
         self.pred_score = nn.Bilinear(size, size, 1)
         #self.query_proj = nn.Linear(size, size, bias=False)
         #self.target_proj = nn.Linear(size, size, bias=False)
 
     def forward(self, query, target):
+        #return (self.proj(query) * self.proj(target)).sum(dim=1)
         return (self.query_score(query) + self.pred_score(query, target)).squeeze(1)
         #return (self.query_score(query)).squeeze(1) + (self.query_proj(query) * self.target_proj(target)).sum(dim=1)
         #return (query * target * self.weight.expand_as(query)).sum(dim=1)
