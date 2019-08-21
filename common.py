@@ -47,8 +47,10 @@ def _representer(vocab):
             with torch.no_grad():
                 _, _, hiddens = representer(utt_enc)
                 word_rep = hiddens[0].mean(dim=1)
+                #mid_rep = hiddens[len(hiddens)//2].mean(dim=1)
                 seq_rep = hiddens[-1].mean(dim=1)
             out.append(F.normalize(word_rep, dim=1))
+            #out.append(F.normalize(mid_rep, dim=1))
             out.append(F.normalize(seq_rep, dim=1))
 
         if FLAGS.lex_features:
