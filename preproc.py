@@ -2,12 +2,13 @@
 
 import common
 from common import _representer, _device
-from util import lf_tokenize
+import util
 
 from absl import app, flags
 import json
 import numpy as np
 import os
+import sexpdata
 import torch
 from tqdm import tqdm
 
@@ -15,12 +16,16 @@ FLAGS = flags.FLAGS
 
 def main(argv):
     canonical_utt_file = os.path.join(FLAGS.data_dir, "genovernight.out", FLAGS.dataset, "utterances_formula.tsv")
+    train_file = os.path.join(FLAGS.data_dir, "data", "{}.paraphrases.train.examples".format(FLAGS.dataset))
 
     vocab = {}
-    with open(canonical_utt_file) as f:
-        for line in tqdm(f):
-            utt, lf = line.strip().split("\t")
-            words = utt.split()
+    with open(train_file) as f:
+        train_str = f.read()
+        train_data = sexpdata.loads("({})".format(train_str))
+        for datum in train_data:
+            real = datum[1][1]
+            fake = datum[2][1]
+            words = util.word_tokenize(real) + util.word_tokenize(fake)
             for word in words:
                 if word not in vocab:
                     vocab[word] = len(vocab)

@@ -1,13 +1,15 @@
-def lf_tokenize(vocab, lf):
-    tokens = lf.replace("(", "( ").replace(")", " )").split()
-    out = []
-    for token in tokens:
-        if token not in vocab:
-            vocab[token] = len(vocab)
-        out.append(vocab[token])
-    return out
+import spacy
 
-def lf_detokenize(reverse_vocab, tokens):
-    tokens = [reverse_vocab[t] for t in tokens]
+NLP = spacy.load("en_core_web_sm")
+
+def word_tokenize(utt):
+    analyzed_utt = NLP(utt)
+    return [token.lemma_ for token in analyzed_utt]
+
+def lf_tokenize(lf):
+    tokens = lf.replace("(", "( ").replace(")", " )").split()
+    return tokens
+
+def lf_detokenize(tokens):
     lf = " ".join(tokens).replace("( ", "(").replace(" )", ")")
     return lf

@@ -1,9 +1,11 @@
+from models.sim import SimModel
+from models.seq2seq import Seq2SeqModel
+import util
+
 from absl import flags
 import json
-from models.simple import SimpleModel
 import numpy as np
 from pytorch_transformers import BertModel, BertTokenizer, GPT2Model, GPT2Tokenizer
-import spacy
 import torch
 import torch.nn.functional as F
 
@@ -12,15 +14,15 @@ flags.DEFINE_string("data_dir", None, "location of overnight data")
 flags.DEFINE_string("dataset", None, "dataset to use")
 flags.DEFINE_string("bert_version", "bert-base-uncased", "version of BERT pretrained weights to use")
 flags.DEFINE_string("device", "cuda:0", "torch device")
-flags.DEFINE_enum("model", "simple", ["simple"], "model to train")
+flags.DEFINE_enum("model", "sim", ["sim", "seq2seq"], "model to train")
 
 flags.DEFINE_boolean("lex_features", True, "use lexical features")
 flags.DEFINE_boolean("bert_features", True, "use bert features")
-flags.DEFINE_boolean("train_on_paraphrase", False, "train a scoring function")
 
 flags.DEFINE_integer("max_examples", None, "maximum number of examples to read")
 flags.DEFINE_float("train_frac", 1, "fraction of examples to train on")
-flags.DEFINE_boolean("TEST", False, "run on the test set")
+flags.DEFINE_integer("batch_size", 100, "batch size")
+flags.DEFINE_integer("train_iters", 1000, "number of training iterations")
 
 flags.DEFINE_string("write_vocab", "vocab.json", "")
 flags.DEFINE_string("write_utt_reps", "utt_reps.npy", "")
@@ -34,10 +36,6 @@ def _device():
 def _representer(vocab):
     tokenizer = BertTokenizer.from_pretrained(FLAGS.bert_version)
     representer = BertModel.from_pretrained(FLAGS.bert_version, output_hidden_states=True).to(_device())
-    nlp = spacy.load("en_core_web_sm")
-
-    #tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-    #representer = GPT2Model.from_pretrained("gpt2").to(_device())
 
     def represent(utt):
         out = []
@@ -47,17 +45,13 @@ def _representer(vocab):
             with torch.no_grad():
                 _, _, hiddens = representer(utt_enc)
                 word_rep = hiddens[0].mean(dim=1)
-                #mid_rep = hiddens[len(hiddens)//2].mean(dim=1)
                 seq_rep = hiddens[-1].mean(dim=1)
             out.append(F.normalize(word_rep, dim=1))
-            #out.append(F.normalize(mid_rep, dim=1))
             out.append(F.normalize(seq_rep, dim=1))
 
         if FLAGS.lex_features:
             utt_lex = np.zeros((1, len(vocab)), dtype=np.float32)
-            analyzed_utt = nlp(utt)
-            for token in analyzed_utt:
-                word = token.lemma_
+            for word in util.word_tokenize(utt):
                 if word in vocab:
                     utt_lex[0, vocab[word]] = 1
             out.append(F.normalize(torch.tensor(utt_lex).to(_device()), dim=1))
@@ -69,6 +63,18 @@ def _representer(vocab):
 
     return represent
 
+def _embedder(vocab):
+    tokenizer = BertTokenizer.from_pretrained(FLAGS.bert_version)
+    representer = BertModel.from_pretrained(FLAGS.bert_version, output_hidden_states=True).to(_device())
+
+    def embed(utt):
+        assert(FLAGS.bert_features)
+        utt_enc = torch.tensor([tokenizer.encode(utt)]).to(_device())
+        with torch.no_grad():
+            _, _, hiddens = representer(utt_enc)
+            return torch.cat([hiddens[0], hiddens[-1]], dim=2)
+
+    return embed
 
 def _model():
     with open(FLAGS.write_vocab) as f:
@@ -78,7 +84,14 @@ def _model():
     with open(FLAGS.write_lfs) as f:
         lfs = json.load(f)
     utt_reps = torch.tensor(np.load(FLAGS.write_utt_reps)).to(_device())
+    representer = _representer(vocab)
+    embedder = _embedder(vocab)
+    test_emb = embedder("test")
 
-    assert FLAGS.model == "simple"
-    learned_scorer = FLAGS.train_on_paraphrase
-    return SimpleModel(learned_scorer, utt_reps, utts, lfs, _representer(vocab), _device())
+    if FLAGS.model == "sim":
+        model = SimModel(utt_reps, utts, lfs, representer, _device())
+    elif FLAGS.model == "seq2seq":
+        model = Seq2SeqModel(test_emb.shape[2], vocab, utts, lfs, embedder, _device())
+    else:
+        assert False
+    return model

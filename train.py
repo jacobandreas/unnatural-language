@@ -14,6 +14,7 @@ def main(argv):
     
     fake_utts = []
     real_utts = []
+    lfs = []
 
     train_file = os.path.join(FLAGS.data_dir, "data", "{}.paraphrases.train.examples".format(FLAGS.dataset))
     with open(train_file) as f:
@@ -29,10 +30,12 @@ def main(argv):
     for datum in train_data:
         real = datum[1][1]
         fake = datum[2][1]
+        lf = sexpdata.dumps(datum[3][1]).replace("\\.", ".")
         fake_utts.append(fake)
         real_utts.append(real)
+        lfs.append(lf)
 
-    model.train(real_utts, fake_utts)
+    model.train(real_utts, fake_utts, lfs)
     model.save(FLAGS.write_model)
 
 if __name__ == "__main__":

@@ -8,7 +8,8 @@ from tqdm import tqdm
 import sys
 
 FLAGS = flags.FLAGS
-HIDDEN = 1024
+flags.DEFINE_enum("sim__scorer", "bilinear", ["", "linear", "bilinear"], "scoring function to use")
+flags.DEFINE_boolean("sim__supervised", False, "train on examples")
 
 def dist_l2(query, target):
     return torch.norm(query - target, dim=1)
@@ -18,24 +19,24 @@ def dist_cos(query, target):
     target = target / torch.norm(target, dim=1).unsqueeze(1)
     return (1 - (query * target).sum(dim=1)) / 2
 
-class Model(object):
-    pass
-
 class Scorer(nn.Module):
     def __init__(self, size):
         super().__init__()
-        self.weight = nn.Parameter(torch.ones(1, size))
-        #self.proj = nn.Linear(size, HIDDEN, bias=False)
         self.query_score = nn.Linear(size, 1)
-        self.pred_score = nn.Bilinear(size, size, 1)
-        #self.query_proj = nn.Linear(size, size, bias=False)
-        #self.target_proj = nn.Linear(size, size, bias=False)
+        if FLAGS.sim__scorer == "linear":
+            self.pred_score = nn.Linear(size, 1)
+        elif FLAGS.sim__scorer == "bilinear":
+            self.pred_score = nn.Bilinear(size, size, 1)
+        else:
+            assert False
 
     def forward(self, query, target):
-        #return (self.proj(query) * self.proj(target)).sum(dim=1)
-        return (self.query_score(query) + self.pred_score(query, target)).squeeze(1)
-        #return (self.query_score(query)).squeeze(1) + (self.query_proj(query) * self.target_proj(target)).sum(dim=1)
-        #return (query * target * self.weight.expand_as(query)).sum(dim=1)
+        if FLAGS.sim__scorer == "linear":
+            return (self.query_score(query) + self.pred_score(query * target * np.sqrt(query.shape[1]))).squeeze(1)
+        elif FLAGS.sim__scorer == "bilinear":
+            return (self.query_score(query) + self.pred_score(query, target)).squeeze(1)
+        else:
+            assert False
 
 class DistScorer(nn.Module):
     def __init__(self, size):
@@ -44,8 +45,8 @@ class DistScorer(nn.Module):
     def forward(self, query, target):
         return dist_cos(query, target)
 
-class SimpleModel(Model):
-    def __init__(self, learned_scorer, utt_reps, utts, lfs, representer, device):
+class SimModel(object):
+    def __init__(self, utt_reps, utts, lfs, representer, device):
         self.utt_reps = utt_reps
         self.utts = utts
         self.lfs = lfs
@@ -53,7 +54,7 @@ class SimpleModel(Model):
         self.device = device
 
         n_features = self.utt_reps.shape[1]
-        if learned_scorer:
+        if FLAGS.sim__supervised:
             self.scorer = Scorer(n_features)
         else:
             self.scorer = DistScorer(n_features)
@@ -69,13 +70,13 @@ class SimpleModel(Model):
         opt = optim.Adam(self.scorer.parameters(), lr=0.001)
         total_loss = 0
 
-        for i in range(5000):
+        for i in range(FLAGS.train_iters):
             if (i+1) % 100 == 0:
                 print("{:.3f}".format(total_loss / 100), file=sys.stderr)
                 total_loss = 0
 
-            true_indices = np.random.randint(len(real_reps), size=100)
-            false_indices = np.random.randint(len(real_reps), size=100)
+            true_indices = np.random.randint(len(real_reps), size=FLAGS.batch_size)
+            false_indices = np.random.randint(len(real_reps), size=FLAGS.batch_size)
             pred_reps = torch.stack([real_reps[i] for i in true_indices])
             true_reps = torch.stack([fake_reps[i] for i in true_indices])
             false_reps = torch.stack([fake_reps[i] for i in false_indices])
@@ -100,8 +101,6 @@ class SimpleModel(Model):
         scores = self.scorer(self.utt_reps, rep)
         best = scores.argmin()
 
-        #print(self.utts[best])
-
         nbest = scores.argsort().cpu().numpy()
         for n, i in enumerate(nbest):
             gold = "*" if self.lfs[i] == gold_lf else " "
@@ -110,3 +109,4 @@ class SimpleModel(Model):
         print(best, file=sys.stderr)
 
         return self.lfs[best]
+
