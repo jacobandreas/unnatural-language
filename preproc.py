@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import common
-from common import _representer, _device
+from common import _sent_representer, _word_representer, _device
 import util
 
 from absl import app, flags
@@ -14,6 +14,13 @@ from tqdm import tqdm
 
 FLAGS = flags.FLAGS
 
+def _pad_cat(reps):
+    max_len = max(rep.shape[1] for rep in reps)
+    data = np.zeros((max_len, len(reps), reps[0].shape[2]), dtype=np.float32)
+    for i, rep in enumerate(reps):
+        data[:rep.shape[1], i, :] = rep[0, ...]
+    return data
+
 def main(argv):
     canonical_utt_file = os.path.join(FLAGS.data_dir, "genovernight.out", FLAGS.dataset, "utterances_formula.tsv")
     train_file = os.path.join(FLAGS.data_dir, "data", "{}.paraphrases.train.examples".format(FLAGS.dataset))
@@ -24,27 +31,37 @@ def main(argv):
         train_data = sexpdata.loads("({})".format(train_str))
         for datum in train_data:
             real = datum[1][1]
-            fake = datum[2][1]
-            words = util.word_tokenize(real) + util.word_tokenize(fake)
+            words = util.word_tokenize(real)
+            for word in words:
+                if word not in vocab:
+                    vocab[word] = len(vocab)
+    with open(canonical_utt_file) as f:
+        for line in f:
+            utt, _ = line.strip().split("\t")
+            words = util.word_tokenize(utt)
             for word in words:
                 if word not in vocab:
                     vocab[word] = len(vocab)
 
-    representer = _representer(vocab)
+    sent_representer = _sent_representer(vocab)
+    word_representer = _word_representer(vocab)
 
-    utt_reps = []
+    sent_reps = []
+    word_reps = []
     utts = []
     lfs = []
     with open(canonical_utt_file) as f:
         for line in tqdm(f):
             utt, lf = line.strip().split("\t")
-            utt_reps.append(representer(utt).squeeze(0).detach().cpu().numpy())
+            sent_reps.append(sent_representer(utt).squeeze(0).detach().cpu().numpy())
+            word_reps.append(word_representer(utt).detach().cpu().numpy())
             utts.append(utt)
             lfs.append(lf)
 
     with open(FLAGS.write_vocab, "w") as f:
         json.dump(vocab, f)
-    np.save(FLAGS.write_utt_reps, utt_reps)
+    np.save(FLAGS.write_utt_reps, sent_reps)
+    np.save(FLAGS.write_word_reps, _pad_cat(word_reps))
     with open(FLAGS.write_utts, "w") as f:
         json.dump(utts, f)
     with open(FLAGS.write_lfs, "w") as f:
