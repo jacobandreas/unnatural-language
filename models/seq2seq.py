@@ -33,6 +33,7 @@ class Implementation(nn.Module):
         else:
             self.encoder = Encoder(vocab, embed_size, hidden_size, 1)
 
+        self.pre_proj = nn.Linear(rep_size, embed_size)
         self.proj = nn.Linear(hidden_size * 2, hidden_size)
 
         self.decoder = Decoder(
@@ -73,7 +74,8 @@ class Implementation(nn.Module):
             enc_words = self.encoder(emb_words)
             enc_utt = enc_words.mean(dim=0, keepdim=True)
         else:
-            enc_words, (enc_utt, _) = self.encoder(emb_words)
+            proj_words = self.pre_proj(emb_words)
+            enc_words, (enc_utt, _) = self.encoder(proj_words)
             enc_words = self.proj(enc_words)
             enc_utt = self.proj(torch.cat(enc_utt.split(1), dim=2))
         return enc_words, enc_utt, att_toks
